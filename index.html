@@ -1,0 +1,207 @@
+<html>
+
+  <head>
+    <style>
+
+  
+      body{
+
+        margin:0px;
+        background:black;
+
+      }
+
+      #container{
+        
+        position:absolute;
+        top:0px;
+        left:0px;
+
+      }
+
+    </style>
+  </head>
+
+<body>
+
+  <div id = "container" ></div>
+
+  <script src = "three.min.js" ></script>
+  <script src = "audio.js" ></script>
+  <script>
+
+
+    /*
+        GLOBAL VARS
+    */
+
+    var scene , camera , renderer;
+
+    var container;
+
+    var particleGeo, particleData;
+    var pulseGeo;
+    var pulseData;
+    // Scene Size 
+    var SS = 100;
+
+    var freqByteData;
+
+    initAudio();
+
+    function init(){
+
+      scene = new THREE.Scene();
+
+      var FOV         = 45;
+      var aspectRatio = window.innerWidth / window.innerHeight;
+      var near        = SS / 10; // Large as possible
+      var far         = SS * 2 ; // Small as possible
+
+      // you will see what is between these two numbers
+
+      camera = new THREE.PerspectiveCamera( FOV , aspectRatio , near, far );
+
+      camera.position.z = SS;
+
+  
+      initSceneObjects();
+      //initParticles();
+
+      renderer = new THREE.WebGLRenderer();
+
+      // These should be the same numbers that are in the aspect ratio
+      renderer.setSize( window.innerWidth , window.innerHeight );
+
+
+      // Adding that shit to the dom
+      container = document.getElementById( 'container' );
+      
+      container.appendChild( renderer.domElement );
+
+
+    }
+
+
+    function animate(){
+
+
+      renderer.render( scene , camera );
+
+
+      requestAnimationFrame( animate );
+      updateAudio();
+      updatePulseGeo();
+      //updateParticles();
+      
+    }
+
+    function initSceneObjects(){
+
+      //we create a geometry and then we copy so that there is an unaltered version to compare to
+      pulseGeo = new THREE.SphereGeometry( SS / 10 , 20 , 10);
+      //pulseGeo = new THREE.IcosahedronGeometry( SS / 10 , 2);
+      pulseData = pulseGeo.clone();
+      //clone is a threejs thing that copies the variable into a new object
+      var material = new THREE.MeshNormalMaterial();
+
+      for( var i = 0 ;  i < 20 ; i++ ){
+
+        var mesh = new THREE.Mesh( pulseGeo, material );
+
+        mesh.position.x = ( Math.random() - .5 ) * SS;
+        mesh.position.y = ( Math.random() - .5 ) * SS;
+        mesh.position.z = ( Math.random() - .5 ) * SS;
+
+        mesh.rotation.x = ( Math.random() - .5 ) * Math.PI * 2;
+        mesh.rotation.y = ( Math.random() - .5 ) * Math.PI * 2;
+        mesh.rotation.z = ( Math.random() - .5 ) * Math.PI * 2;
+
+        scene.add( mesh );
+
+
+
+      }
+
+    }
+
+function initParticles(){
+  //creating a geometry from scratch
+  
+  //right now, particleGeo.vertices is empty
+  particleGeo = new THREE.Geometry();
+  for (var i = 0; i < masterAnalyser.frequencyBinCount; i ++){
+
+      //will range from 0 to SS, makes a line from the origin going out 
+      var x = ((i / masterAnalyser.frequencyBinCount) -.5) * 2 * SS;
+      var vert = new THREE.Vector3(x, 0, 0);
+      
+      //get that in our geometry
+      particleGeo.vertices.push( vert );
+
+  }
+  //cloneing for reference
+  particleData = particleGeo.clone();
+
+  var material = new THREE.ParticleBasicMaterial({
+    color: 0xc0ffee,
+    opacity: .7,
+    transparent: true,
+    size: 3
+  })
+
+  //now that we've got eo and mat, lets make the system
+  var particleSystem = new THREE.ParticleSystem( particleGeo, material)
+  scene.add( particleSystem);
+
+}
+
+function updateAudio(){
+  freqByteData = new Uint8Array( masterAnalyser.frequencyBinCount);
+  masterAnalyser.getByteFrequencyData(freqByteData);
+
+}
+function updatePulseGeo(){
+
+        for(var i = 0; i < pulseGeo.vertices.length; i++){
+          if(freqByteData[i]){
+
+            //fbd ranges between 0 and 256
+            var fbd = freqByteData[i];
+            pulseGeo.vertices[i].x = pulseData.vertices[i].x * (1 + fbd/100);
+            pulseGeo.vertices[i].y = pulseData.vertices[i].y * (1 + fbd/100);
+            pulseGeo.vertices[i].z = pulseData.vertices[i].z * (1 + fbd/100);
+
+          }
+        }
+
+        pulseGeo.verticesNeedUpdate = true;
+
+      }
+
+function updateParticles(){
+
+  for(var i = 0; i < particleGeo.vertices.length; i ++){
+    if(freqByteData[i]){
+      var fbd = freqByteData[i];
+      particleGeo.vertices[i].y = particleData.vertices[i].y + (fbd/ 256) * 5;
+    }
+  }
+  particleGeo.verticesNeedUpdate = true;
+}
+
+    function BEGIN(){
+
+      init();
+      animate();
+
+      note.play();
+
+
+    }
+
+
+  </script>
+
+</body>
+</html>
